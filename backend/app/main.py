@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
-
+from app.services.bandit_service import run_bandit
 from app.services.semgrep_service import run_semgrep
 
 
@@ -65,3 +65,45 @@ async def scan_semgrep(file: UploadFile = File(...)):
                 "raw": raw,
             }
         )
+@app.post("/scan/bandit")
+async def scan_bandit(file: UploadFile = File(...)):
+    """
+    Reçoit un ZIP (projet), l'extrait dans un dossier temporaire,
+    lance Bandit et renvoie les résultats.
+    """
+
+    if not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Upload a .zip file")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+
+        zip_path = tmp_path / "project.zip"
+        extract_dir = tmp_path / "project"
+
+        zip_path.write_bytes(await file.read())
+
+        try:
+            shutil.unpack_archive(str(zip_path), str(extract_dir))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid zip file")
+
+        raw = run_bandit(str(extract_dir))
+
+        # Bandit renvoie un format différent de Semgrep
+        # Dans son JSON, les issues sont souvent dans "results"
+        results = raw.get("results", [])
+
+        summary = {
+            "issues": len(results),
+            "tool": "bandit",
+        }
+
+        return JSONResponse(
+            {
+                "tool": "bandit",
+                "summary": summary,
+                "raw": raw,
+            }
+        )
+    
