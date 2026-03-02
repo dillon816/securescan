@@ -1,0 +1,49 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+function Scan() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const t = setTimeout(() => navigate("/dashboard"), 2000);
+    return () => clearTimeout(t);
+  }, [navigate]);
+
+  return (
+    <div style={{ maxWidth: 900, margin: "40px auto", padding: "0 20px" }}>
+      <div
+        style={{
+          backgroundColor: "white",
+          padding: 28,
+          borderRadius: 22,
+          boxShadow: "0 8px 30px rgba(0,0,0,0.05)",
+        }}
+      >
+        <h1 style={{ marginTop: 0 }}>Analyse en cours…</h1>
+        <p style={{ color: "#666", marginTop: 6 }}>
+          On lance les outils et on prépare les résultats.
+        </p>
+
+        <div
+          style={{
+            marginTop: 18,
+            border: "1px solid #eee",
+            borderRadius: 18,
+            padding: 18,
+            backgroundColor: "#fafafa",
+          }}
+        >
+          <p style={{ margin: 0, padding: "8px 0" }}>Semgrep ✅</p>
+          <p style={{ margin: 0, padding: "8px 0" }}>TruffleHog ⏳</p>
+          <p style={{ margin: 0, padding: "8px 0" }}>pip-audit ⏳</p>
+        </div>
+
+        <p style={{ marginTop: 16, color: "#999", fontSize: 13 }}>
+          (Redirection automatique vers le dashboard.)
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default Scan;
