@@ -4,13 +4,24 @@ from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
 from app.services.bandit_service import run_bandit
 from app.services.semgrep_service import run_semgrep
-
+from app.services.trufflehog_service import run_trufflehog
 
 app = FastAPI(
     title="SecureScan API",
     version="0.1",
+)
+
+# CORS pour autoriser le frontend React (localhost:3000)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -106,4 +117,3 @@ async def scan_bandit(file: UploadFile = File(...)):
                 "raw": raw,
             }
         )
-    
