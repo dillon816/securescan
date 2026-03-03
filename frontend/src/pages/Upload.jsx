@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { scanSemgrepZip, scanGit } from "../services/api";
+import { scanZipAll, scanGitAll } from "../services/api";
 
 // Page Upload permettant d'analyser un projet via URL Git ou fichier ZIP
 export default function Upload() {
@@ -23,11 +23,11 @@ export default function Upload() {
     try {
       setLoading(true);
   
-      const result = zipFile
-        ? await scanSemgrepZip(zipFile)
-        : await scanGit(url);
+      const results = zipFile
+        ? await scanZipAll(zipFile)
+        : await scanGitAll(url);
   
-      navigate("/scan", { state: { semgrepResult: result } });
+      navigate("/scan", { state: { scanResults: results } });
     } catch (e) {
       alert(`Erreur analyse: ${e.message}`);
     } finally {

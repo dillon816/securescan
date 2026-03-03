@@ -96,22 +96,40 @@ export default function Dashboard() {
   const [severityFilter, setSeverityFilter] = useState("All");
   const [owaspFilter, setOwaspFilter] = useState("All");
 
-  const semgrepResult = location.state?.semgrepResult || null;
-  const rawResults = semgrepResult?.raw?.results || [];
+  const scanResults = location.state?.scanResults || null;
+
+  const semgrepResult = scanResults?.semgrepResult || null;
+  const banditResult = scanResults?.banditResult || null;
+  const trufflehogResult = scanResults?.trufflehogResult || null;
+
+  // On se base sur le format normalisé (issues) du backend
+  const rawResults = semgrepResult?.issues || [];
 
   const findings = useMemo(() => {
     return rawResults.map((r) => {
-      const title = r?.check_id || r?.extra?.message || "Semgrep finding";
-      const severity = normalizeSeverity(r?.extra?.severity || r?.severity);
-      const owasp = extractOwaspFromResult(r);
-      const filePath = r?.path || r?.extra?.path || "—";
+      const titleFull = r?.title || r?.rule_id || "Finding";
+      const severity = normalizeSeverity(r?.severity);
+
+      // OWASP déjà normalisé par le backend: owasp_id = "A05:2025"
+      const owasp = (r?.owasp_id || "—").toString().match(/A\d{2}/)?.[0] || "—";
+
+      const fileFull = r?.file || "—";
+      const line = r?.line ? `:${r.line}` : "";
+      const fileWithLine = `${fileFull}${line}`;
+
+      // affichage plus propre (tronqué) + tooltip sur la version complète
+      const title = titleFull.length > 52 ? titleFull.slice(0, 51) + "…" : titleFull;
+      const file =
+        fileWithLine.length > 72 ? "…" + fileWithLine.slice(fileWithLine.length - 72) : fileWithLine;
 
       return {
-        id: `${title}-${filePath}-${r?.start?.line || ""}`,
+        id: `${titleFull}-${fileWithLine}`,
         title,
+        titleFull,
         severity,
         owasp,
-        file: filePath,
+        file,
+        fileFull: fileWithLine,
       };
     });
   }, [rawResults]);
@@ -170,7 +188,7 @@ export default function Dashboard() {
           <h1 style={{ margin: 0 }}>Dashboard</h1>
 
           <button
-            onClick={() => navigate("/fixes", { state: { semgrepResult } })}
+            onClick={() => navigate("/fixes", { state: { semgrepResult, scanResults } })}
             style={{
               backgroundColor: "rgba(255, 182, 193, 0.25)",
               color: "#c04c78",
@@ -196,9 +214,10 @@ export default function Dashboard() {
             justifyContent: "space-between",
             alignItems: "center",
             gap: 20,
+            flexWrap: "wrap",
           }}
         >
-          <div>
+          <div style={{ minWidth: 280 }}>
             <h2 style={{ marginTop: 0 }}>Score global</h2>
             <p style={{ margin: "6px 0", color: "#666" }}>
               {filtered.length} vulnérabilité(s) affichée(s) (sur {findings.length})
@@ -221,7 +240,66 @@ export default function Dashboard() {
           >
             <div style={{ fontSize: 52, fontWeight: 800 }}>{score}/100</div>
           </div>
+
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div
+              style={{
+                minWidth: 220,
+                borderRadius: 20,
+                background: "rgba(173, 216, 230, 0.22)",
+                border: "1px solid rgba(100, 149, 237, 0.25)",
+                padding: 16,
+                color: "#1f4aa5",
+              }}
+            >
+              <div style={{ fontWeight: 800, fontSize: 14 }}>Bandit</div>
+              <div style={{ marginTop: 6, fontSize: 26, fontWeight: 800 }}>
+                {banditResult?.error ? "—" : banditResult?.summary?.issues ?? 0}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 12, color: "#2a4f9b" }}>
+                {banditResult?.error ? "Non disponible" : "issue(s) détectée(s)"}
+            </div>
+            </div>
+
+            <div
+              style={{
+                minWidth: 220,
+                borderRadius: 20,
+                background: "rgba(144, 238, 144, 0.18)",
+                border: "1px solid rgba(60, 179, 113, 0.25)",
+                padding: 16,
+                color: "#1f7a3b",
+              }}
+            >
+              <div style={{ fontWeight: 800, fontSize: 14 }}>TruffleHog</div>
+              <div style={{ marginTop: 6, fontSize: 26, fontWeight: 800 }}>
+                {trufflehogResult?.error ? "—" : trufflehogResult?.summary?.secrets ?? 0}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 12, color: "#2b7f46" }}>
+                {trufflehogResult?.error ? "Erreur TruffleHog" : "secret(s) détecté(s)"}
+              </div>
+            </div>
+          </div>
         </div>
+
+        {(banditResult?.error || trufflehogResult?.error) && (
+          <div
+            style={{
+              marginTop: 14,
+              background: "rgba(255, 205, 120, 0.22)",
+              border: "1px solid rgba(255, 170, 60, 0.30)",
+              borderRadius: 18,
+              padding: 14,
+              color: "#7a4a00",
+            }}
+          >
+            <div style={{ fontWeight: 800 }}>Certain(s) outils n’ont pas pu s’exécuter</div>
+            <ul style={{ margin: "8px 0 0 18px" }}>
+              {banditResult?.error && <li>Bandit : {banditResult.error}</li>}
+              {trufflehogResult?.error && <li>TruffleHog : {trufflehogResult.error}</li>}
+            </ul>
+          </div>
+        )}
 
         <div
           style={{
@@ -320,7 +398,7 @@ export default function Dashboard() {
                   filtered.map((f) => (
                     <tr key={f.id}>
                       <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0" }}>
-                        {f.title}
+                        <span title={f.titleFull}>{f.title}</span>
                       </td>
                       <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0" }}>
                         <span
@@ -340,7 +418,15 @@ export default function Dashboard() {
                         {f.owasp}
                       </td>
                       <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0", color: "#555" }}>
-                        {f.file}
+                        <span
+                          title={f.fileFull}
+                          style={{
+                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                            fontSize: 12,
+                          }}
+                        >
+                          {f.file}
+                        </span>
                       </td>
                     </tr>
                   ))
@@ -352,11 +438,22 @@ export default function Dashboard() {
           {import.meta.env.DEV && (
             <details style={{ marginTop: 16 }}>
               <summary style={{ cursor: "pointer", color: "#666" }}>
-                Debug : afficher le JSON brut Semgrep
+                Debug : afficher les données Semgrep (issues + raw)
               </summary>
-              <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, marginTop: 10 }}>
-                {JSON.stringify(semgrepResult.raw, null, 2)}
-              </pre>
+
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontWeight: 800, fontSize: 12, color: "#666" }}>Issues (normalisées)</div>
+                <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, marginTop: 8 }}>
+                  {JSON.stringify(semgrepResult.issues, null, 2)}
+                </pre>
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontWeight: 800, fontSize: 12, color: "#666" }}>Raw (Semgrep)</div>
+                <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, marginTop: 8 }}>
+                  {JSON.stringify(semgrepResult.raw, null, 2)}
+                </pre>
+              </div>
             </details>
           )}
         </div>

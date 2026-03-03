@@ -73,7 +73,7 @@ function OwaspBadge({ code }) {
   );
 }
 
-// Composant affichant du code formaté 
+// Composant affichant du code formaté
 function CodeBox({ text }) {
   return (
     <pre
@@ -94,7 +94,7 @@ function CodeBox({ text }) {
   );
 }
 
-// Normalise la sévérité brute en niveau standardisé 
+// Normalise la sévérité brute en niveau standardisé
 function normalizeSeverity(raw) {
   const s = String(raw || "medium").toLowerCase();
   if (s.includes("critical")) return "Critical";
@@ -168,16 +168,19 @@ function buildFixesFromSemgrep(semgrepResult) {
   });
 }
 
-// Page principale affichant les corrections et le rapport 
+// Page principale affichant les corrections et le rapport
 export default function Fixes() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const semgrepResult = state?.semgrepResult;
 
+  // On garde scanResults si on l'a (utile pour revenir proprement au dashboard)
+  const scanResults = state?.scanResults;
+
   const fixes = useMemo(() => buildFixesFromSemgrep(semgrepResult), [semgrepResult]);
 
   const [selected, setSelected] = useState(() => new Set());
-  const [status, setStatus] = useState("idle"); 
+  const [status, setStatus] = useState("idle");
 
   const toggle = (id) => {
     setSelected((prev) => {
@@ -302,7 +305,11 @@ export default function Fixes() {
           </button>
 
           <button
-            onClick={() => navigate("/dashboard", { state: { semgrepResult } })}
+            onClick={() => {
+              // Retour "propre": si scanResults existe on le renvoie, sinon on garde l'ancien fallback
+              if (scanResults) navigate("/dashboard", { state: { scanResults } });
+              else navigate("/dashboard", { state: { semgrepResult } });
+            }}
             style={{
               backgroundColor: "rgba(0,0,0,0.05)",
               color: "#444",

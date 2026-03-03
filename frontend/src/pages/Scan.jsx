@@ -5,20 +5,20 @@ import { useLocation, useNavigate } from "react-router-dom";
 function Scan() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const semgrepResult = state?.semgrepResult;
+  const scanResults = state?.scanResults;
 
   useEffect(() => {
-    if (!semgrepResult) {
+    if (!scanResults) {
       navigate("/", { replace: true });
       return;
     }
 
     const t = setTimeout(() => {
-      navigate("/dashboard", { state: { semgrepResult } });
+      navigate("/dashboard", { state: { scanResults } });
     }, 1200);
 
     return () => clearTimeout(t);
-  }, [navigate, semgrepResult]);
+  }, [navigate, scanResults]);
 
   return (
     <div style={{ maxWidth: 900, margin: "40px auto", padding: "0 20px" }}>
