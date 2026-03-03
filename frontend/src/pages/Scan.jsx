@@ -1,13 +1,24 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
+// Page d'attente affichant le statut du scan avant la redirection vers le dashboard
 function Scan() {
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const semgrepResult = state?.semgrepResult;
 
   useEffect(() => {
-    const t = setTimeout(() => navigate("/dashboard"), 2000);
+    if (!semgrepResult) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    const t = setTimeout(() => {
+      navigate("/dashboard", { state: { semgrepResult } });
+    }, 1200);
+
     return () => clearTimeout(t);
-  }, [navigate]);
+  }, [navigate, semgrepResult]);
 
   return (
     <div style={{ maxWidth: 900, margin: "40px auto", padding: "0 20px" }}>

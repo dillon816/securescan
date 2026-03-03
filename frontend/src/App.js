@@ -4,6 +4,7 @@ import Scan from "./pages/Scan";
 import Dashboard from "./pages/Dashboard";
 import Fixes from "./pages/Fixes";
 
+// Configuration des routes principales de l'application
 function App() {
   return (
     <Router>
@@ -16,5 +17,4 @@ function App() {
     </Router>
   );
 }
-
 export default App;
