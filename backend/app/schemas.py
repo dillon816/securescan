@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 
 # ==========================================
-# 1. SCHEMAS CHO CORRECTIONS
+# 1. SCHEMAS CORRECTIONS
 # ==========================================
 class CorrectionBase(BaseModel):
     before_code: str
@@ -18,7 +18,7 @@ class CorrectionResponse(CorrectionBase):
         from_attributes = True 
 
 # ==========================================
-# 2. SCHEMAS CHO FINDINGS 
+# 2. SCHEMAS FINDINGS 
 # ==========================================
 class FindingBase(BaseModel):
     file_path: str
@@ -39,7 +39,7 @@ class FindingResponse(FindingBase):
         from_attributes = True
 
 # ==========================================
-# 3. SCHEMAS CHO SCAN JOBS 
+# 3. SCHEMAS SCAN JOBS 
 # ==========================================
 class ScanJobBase(BaseModel):
     tool_name: str
@@ -54,7 +54,7 @@ class ScanJobResponse(ScanJobBase):
         from_attributes = True
 
 # ==========================================
-# 4. SCHEMAS CHO PROJECTS
+# 4. SCHEMAS PROJECTS
 # ==========================================
 class ProjectCreate(BaseModel):
     repo_url: str

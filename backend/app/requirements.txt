@@ -1,4 +1,6 @@
 fastapi
-pathlib
-python-multipart
 uvicorn
+python-multipart
+sqlalchemy
+python-dotenv
+psycopg2-binary
