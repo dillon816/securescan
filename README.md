@@ -290,6 +290,20 @@ Pour analyser des repositories privés et créer des Pull Requests :
    - GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
 2. Permissions nécessaires : `repo` (accès complet aux repositories)
 3. Utilise le token dans l'interface lors de l'analyse Git
+  
+Pour analyser des repositories privés et créer des Pull Requests, SecureScan utilise un **GitHub Personal Access Token (Fine-grained)**.
+
+1. Aller sur **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens**
+2. Cliquer sur **Generate new token**
+3. Sélectionner le repository à analyser
+
+Permissions nécessaires :
+
+- **Contents** → Read and write  
+- **Metadata** → Read-only  
+- **Pull requests** → Read-only  
+
+Le token peut ensuite être utilisé dans SecureScan pour analyser le repository et créer automatiquement une Pull Request avec les correctifs.
 
 ⚠️ **Sécurité** : Le token n'est jamais stocké, uniquement transmis au backend pour les opérations Git.
 
