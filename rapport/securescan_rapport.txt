@@ -1,0 +1,534 @@
+================================================================================
+SECURESCAN - RAPPORT DE SÉCURITÉ
+================================================================================
+
+Date d'analyse : 05/03/2026 20:02:43
+Projet analysé : https://github.com/dillon816/securescan.git
+
+--------------------------------------------------------------------------------
+RÉSUMÉ
+--------------------------------------------------------------------------------
+Total de vulnérabilités sélectionnées : 26
+
+Répartition par sévérité :
+  - Low: 26
+
+--------------------------------------------------------------------------------
+DÉTAILS DES CORRECTIONS
+--------------------------------------------------------------------------------
+
+1. B404
+   Règle : B404
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/api/routes.py:14
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      13 import json
+   14 import subprocess
+   15 from datetime import datetime
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+2. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/api/routes.py:829
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      828             # On essaie d'abord de limiter au fichier concerné.
+   829             patch = subprocess.run(
+   830                 ["git", "diff", "--no-color", "--", file_path],
+   831                 cwd=repo_dir,
+   832                 capture_output=True,
+   833                 text=True,
+   834             ).stdout or ""
+   835 
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+3. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/api/routes.py:838
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      837             if not patch.strip():
+   838                 patch = subprocess.run(
+   839                     ["git", "diff", "--no-color"],
+   840                     cwd=repo_dir,
+   841                     capture_output=True,
+   842                     text=True,
+   843                 ).stdout or ""
+   844 
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+4. B404
+   Règle : B404
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/core/git_utils.py:2
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      1 # app/core/git_utils.py
+   2 import subprocess
+   3 from pathlib import Path
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+5. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/core/git_utils.py:41
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      40     try:
+   41         subprocess.run(
+   42             ["git", "clone", "--depth", "1", url, str(repo_dir)],
+   43             check=True,
+   44             capture_output=True,
+   45             text=True,
+   46         )
+   47     except subprocess.CalledProcessError as e:
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+6. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/core/git_utils.py:62
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      61     """
+   62     subprocess.run(["git", "init"], cwd=target_dir, capture_output=True)
+   63     subprocess.run(["git", "config", "user.email", "temp@example.com"], cwd=target_dir, capture_output=True)
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+7. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/core/git_utils.py:63
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      62     subprocess.run(["git", "init"], cwd=target_dir, capture_output=True)
+   63     subprocess.run(["git", "config", "user.email", "temp@example.com"], cwd=target_dir, capture_output=True)
+   64     subprocess.run(["git", "config", "user.name", "Temp"], cwd=target_dir, capture_output=True)
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+8. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/core/git_utils.py:64
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      63     subprocess.run(["git", "config", "user.email", "temp@example.com"], cwd=target_dir, capture_output=True)
+   64     subprocess.run(["git", "config", "user.name", "Temp"], cwd=target_dir, capture_output=True)
+   65     subprocess.run(["git", "add", "."], cwd=target_dir, capture_output=True)
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+9. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/core/git_utils.py:65
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      64     subprocess.run(["git", "config", "user.name", "Temp"], cwd=target_dir, capture_output=True)
+   65     subprocess.run(["git", "add", "."], cwd=target_dir, capture_output=True)
+   66     subprocess.run(["git", "commit", "-m", "temp"], cwd=target_dir, capture_output=True)
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+10. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/core/git_utils.py:66
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      65     subprocess.run(["git", "add", "."], cwd=target_dir, capture_output=True)
+   66     subprocess.run(["git", "commit", "-m", "temp"], cwd=target_dir, capture_output=True)
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+11. B404
+   Règle : B404
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/bandit_service.py:3
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      2 import os
+   3 import subprocess
+   4 import sys
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+12. B603
+   Règle : B603
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/bandit_service.py:26
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      25     try:
+   26         result = subprocess.run(
+   27             cmd,
+   28             capture_output=True,
+   29             text=True,
+   30             encoding="utf-8",
+   31             errors="replace",
+   32             env=env,
+   33         )
+   34     except FileNotFoundError:
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+13. B603
+   Règle : B603
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/bandit_service.py:37
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      36         cmd = [sys.executable, "-m", "bandit"] + args
+   37         result = subprocess.run(
+   38             cmd,
+   39             capture_output=True,
+   40             text=True,
+   41             encoding="utf-8",
+   42             errors="replace",
+   43             env=env,
+   44         )
+   45 
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+14. B404
+   Règle : B404
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/git_patch_service.py:1
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      1 import subprocess
+   2 from pathlib import Path
+   3 
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+15. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/git_patch_service.py:6
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      5     # patch depuis les changements non commit
+   6     p = subprocess.run(
+   7         ["git", "diff"],
+   8         cwd=repo_dir,
+   9         capture_output=True,
+   10         text=True,
+   11     )
+   12     return (p.stdout or "").strip()
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+16. B404
+   Règle : B404
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/github_pr_service.py:3
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      2 import re
+   3 import subprocess
+   4 import tempfile
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+17. B603
+   Règle : B603
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/github_pr_service.py:14
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      13 def _run(cmd: List[str], cwd: Optional[Path] = None) -> str:
+   14     p = subprocess.run(cmd, cwd=str(cwd) if cwd else None, capture_output=True, text=True)
+   15     if p.returncode != 0:
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+18. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/github_pr_service.py:78
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      77     try:
+   78         p = subprocess.run(
+   79             ["git", "apply", "--reject", "--whitespace=nowarn", "--"],
+   80             cwd=str(repo_dir),
+   81             input=patch_diff,
+   82             text=True,
+   83             capture_output=True,
+   84         )
+   85         if p.returncode != 0:
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+19. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/github_pr_service.py:104
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      103     """
+   104     p = subprocess.run(
+   105         ["git", "push", "-u", "origin", branch_name],
+   106         cwd=str(repo_dir),
+   107         capture_output=True,
+   108         text=True,
+   109     )
+   110     if p.returncode == 0:
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+20. B607
+   Règle : B607
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/github_pr_service.py:120
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      119 
+   120         p2 = subprocess.run(
+   121             ["git", "push", "-u", "origin", alt_branch],
+   122             cwd=str(repo_dir),
+   123             capture_output=True,
+   124             text=True,
+   125         )
+   126         if p2.returncode == 0:
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+21. B404
+   Règle : B404
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/semgrep_service.py:3
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      2 import os
+   3 import subprocess
+   4 import sys
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+22. B603
+   Règle : B603
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/semgrep_service.py:39
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      38     try:
+   39         result = subprocess.run(
+   40             cmd,
+   41             capture_output=True,
+   42             text=True,
+   43             encoding="utf-8",
+   44             errors="replace",
+   45             env=env,
+   46         )
+   47     except FileNotFoundError:
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+23. B603
+   Règle : B603
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/semgrep_service.py:52
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      51             cmd = [str(semgrep_bin)] + args
+   52             result = subprocess.run(
+   53                 cmd,
+   54                 capture_output=True,
+   55                 text=True,
+   56                 encoding="utf-8",
+   57                 errors="replace",
+   58                 env=env,
+   59             )
+   60         else:
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+24. B603
+   Règle : B603
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/semgrep_service.py:63
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      62             cmd = [sys.executable, "-m", "semgrep"] + args
+   63             result = subprocess.run(
+   64                 cmd,
+   65                 capture_output=True,
+   66                 text=True,
+   67                 encoding="utf-8",
+   68                 errors="replace",
+   69                 env=env,
+   70             )
+   71  
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+25. B404
+   Règle : B404
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/trufflehog_service.py:3
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      2 import re
+   3 import subprocess
+   4 
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+26. B603
+   Règle : B603
+   Fichier : /var/folders/3d/kt245xq546z05r3c9z8scwq80000gn/T/tmp2y9ft64r/repo/backend/app/services/trufflehog_service.py:48
+   Sévérité : Low
+   Catégorie OWASP : —
+
+   Code avant correction :
+      47 
+   48     process = subprocess.run(cmd, capture_output=True, text=True)
+   49     stdout = (process.stdout or "").strip()
+   
+
+   Code après correction :
+      (pas de fix automatique — à corriger manuellement)
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Généré par SecureScan - Plateforme d'Analyse de Qualité et Sécurité de Code
+================================================================================
