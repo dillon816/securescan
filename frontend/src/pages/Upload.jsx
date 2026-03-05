@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { scanZipAll, scanGitAll } from "../services/api";
+import { scanZipAll, scanGitAll } from "../api/scan";
 
 // Page Upload permettant d'analyser un projet via URL Git ou fichier ZIP
 export default function Upload() {

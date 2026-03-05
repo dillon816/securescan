@@ -5,19 +5,15 @@ const bg = "#f3f3f3";
 const card = "#ffffff";
 const shadow = "0 12px 40px rgba(0,0,0,0.06)";
 
-// Transforme la sévérité brute reçue de Semgrep en un niveau standardisé
 function normalizeSeverity(s) {
   const v = (s || "").toString().toLowerCase();
-
   if (v.includes("critical")) return "Critical";
   if (v.includes("high") || v === "error") return "High";
   if (v.includes("medium") || v === "warning" || v.includes("warn")) return "Medium";
   if (v.includes("low")) return "Low";
-
   return "Info";
 }
 
-// Retourne le style visuel du badge selon le niveau de sévérité
 function badgeStyleForSeverity(sev) {
   switch (sev) {
     case "Critical":
@@ -53,48 +49,184 @@ function badgeStyleForSeverity(sev) {
   }
 }
 
-function extractOwaspFromResult(r) {
-  const md = r?.extra?.metadata || {};
-
-  // ⚠️ OWASP only (pas de cwe, pas de category)
-  const candidates = [md?.owasp, md?.owasp_top_10];
-
-  let val = candidates.find(Boolean);
-
-  if (Array.isArray(val)) val = val[0];
-  if (!val) return "—";
-
-  const s = String(val);
-
-  // Exemple: "A01:2021 - Broken Access Control" => "A01"
-  const match = s.match(/A\d{2}/);
-  if (match) return match[0];
-
-  return s;
-}
-
-// Calcule un score de sécurité global sur 100 en retirant des points selon la gravité des vulnérabilités
 function computeScore(findings) {
   let score = 100;
   for (const f of findings) {
-    const sev = f.severity;
-    if (sev === "Critical") score -= 20;
-    else if (sev === "High") score -= 12;
-    else if (sev === "Medium") score -= 7;
-    else if (sev === "Low") score -= 3;
+    if (f.severity === "Critical") score -= 20;
+    else if (f.severity === "High") score -= 12;
+    else if (f.severity === "Medium") score -= 7;
+    else if (f.severity === "Low") score -= 3;
     else score -= 1;
   }
-  if (score < 0) score = 0;
-  return score;
+  return Math.max(0, score);
 }
 
-// Composant React qui affiche le tableau de bord des vulnerabilités détectées
+function makeFileLine(file, line) {
+  if (!file) return "—";
+  if (line === null || line === undefined || line === "—") return String(file);
+  return `${file}:${line}`;
+}
+
+/** ✅ Description (ton backend renvoie "snippet" + "title") */
+function bestDescription(obj) {
+  return obj?.snippet || obj?.title || obj?.description || obj?.message || "Aucune description disponible.";
+}
+
+/**
+ * ✅ Récupère les résultats Semgrep peu importe la forme renvoyée par le backend
+ * (direct, raw, data, output...).
+ */
+function getSemgrepResults(semgrepResult) {
+  if (!semgrepResult) return [];
+
+  const candidates = [
+    semgrepResult?.results,
+    semgrepResult?.issues,
+    semgrepResult?.raw?.results,
+    semgrepResult?.raw?.issues,
+    semgrepResult?.data?.results,
+    semgrepResult?.data?.issues,
+    semgrepResult?.output?.results,
+  ];
+
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c;
+  }
+  return [];
+}
+
+function mapSemgrepIssues(issues) {
+  return (issues || []).map((r, idx) => {
+    const titleFull = r?.title || r?.check_id || r?.rule_id || "Finding";
+    const MAX_TITLE = 38;
+    const title = titleFull.length > MAX_TITLE ? titleFull.slice(0, MAX_TITLE - 1) + "…" : titleFull;
+
+    const severity = normalizeSeverity(r?.severity);
+    const owasp = r?.owasp_id || "—";
+
+    const file = r?.path || r?.file || "—";
+    const line = r?.start?.line ?? r?.line ?? "—";
+
+    const fileFull = makeFileLine(file, line);
+    const fileShort = fileFull.length > 72 ? "…" + fileFull.slice(fileFull.length - 72) : fileFull;
+
+    return {
+      id: `semgrep-${idx}-${fileFull}-${titleFull}`,
+      title,
+      titleFull,
+      severity,
+      owasp,
+      file: fileShort,
+      fileFull,
+      lineNumber: line,
+      description: bestDescription(r),
+      source: "Semgrep",
+    };
+  });
+}
+
+function mapTrufflehogFindings(trufflehogResult) {
+  const list =
+    trufflehogResult?.raw?.findings ||
+    trufflehogResult?.raw?.results ||
+    trufflehogResult?.findings ||
+    trufflehogResult?.results ||
+    [];
+
+  if (!Array.isArray(list)) return [];
+
+  return list.map((x, idx) => {
+    const path =
+      x?.path ||
+      x?.file ||
+      x?.filename ||
+      x?.source?.file ||
+      x?.source?.path ||
+      x?.location?.path ||
+      x?.location?.file ||
+      "—";
+
+    const line =
+      x?.line ??
+      x?.line_number ??
+      x?.source?.line ??
+      x?.source?.line_number ??
+      x?.start_line ??
+      x?.location?.line ??
+      x?.location?.line_number ??
+      x?.source?.start_line ??
+      "—";
+
+    const titleFull =
+      x?.description ||
+      x?.reason ||
+      x?.detector_name ||
+      x?.detector ||
+      x?.type ||
+      "Secret detected";
+
+    const title = titleFull.length > 52 ? titleFull.slice(0, 51) + "…" : titleFull;
+
+    const fileFull = line !== "—" ? `${path}:${line}` : path;
+    const fileShort = fileFull.length > 72 ? "…" + fileFull.slice(fileFull.length - 72) : fileFull;
+
+    const description = x?.raw || x?.details || x?.message || x?.reason || "Secret détecté par TruffleHog.";
+
+    return {
+      id: `trufflehog-${idx}-${fileFull}-${titleFull}`,
+      title,
+      titleFull,
+      severity: "High",
+      owasp: "A07:2025",
+      file: fileShort,
+      fileFull,
+      lineNumber: line !== "—" ? line : "—",
+      description,
+      source: "TruffleHog",
+    };
+  });
+}
+
+function mapBanditFindings(banditResult) {
+  const list = banditResult?.issues || banditResult?.raw?.results || banditResult?.raw?.issues || [];
+  if (!Array.isArray(list)) return [];
+
+  return list.map((x, idx) => {
+    const titleFull = x?.test_name || x?.issue_text || x?.title || "Bandit issue";
+    const title = titleFull.length > 52 ? titleFull.slice(0, 51) + "…" : titleFull;
+
+    const severityRaw = x?.issue_severity || x?.severity || "Medium";
+    const severity = normalizeSeverity(severityRaw);
+
+    const file = x?.filename || x?.file || "—";
+    const line = x?.line_number ?? x?.line ?? "—";
+
+    const fileFull = makeFileLine(file, line);
+    const fileShort = fileFull.length > 72 ? "…" + fileFull.slice(fileFull.length - 72) : fileFull;
+
+    return {
+      id: `bandit-${idx}-${fileFull}-${titleFull}`,
+      title,
+      titleFull,
+      severity,
+      owasp: "—",
+      file: fileShort,
+      fileFull,
+      lineNumber: line,
+      description: x?.issue_text || x?.more_info || "Issue détectée par Bandit.",
+      source: "Bandit",
+    };
+  });
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [severityFilter, setSeverityFilter] = useState("All");
+  const [sourceFilter, setSourceFilter] = useState("All");
   const [owaspFilter, setOwaspFilter] = useState("All");
+  const [openId, setOpenId] = useState(null);
 
   const scanResults = location.state?.scanResults || null;
 
@@ -102,37 +234,15 @@ export default function Dashboard() {
   const banditResult = scanResults?.banditResult || null;
   const trufflehogResult = scanResults?.trufflehogResult || null;
 
-  // On se base sur le format normalisé (issues) du backend
-  const rawResults = semgrepResult?.issues || [];
+  const semgrepFindings = useMemo(() => mapSemgrepIssues(getSemgrepResults(semgrepResult)), [semgrepResult]);
+  const truffleFindings = useMemo(() => mapTrufflehogFindings(trufflehogResult), [trufflehogResult]);
+  const banditFindings = useMemo(() => mapBanditFindings(banditResult), [banditResult]);
 
-  const findings = useMemo(() => {
-    return rawResults.map((r) => {
-      const titleFull = r?.title || r?.rule_id || "Finding";
-      const severity = normalizeSeverity(r?.severity);
-
-      // OWASP déjà normalisé par le backend: owasp_id = "A05:2025"
-      const owasp = (r?.owasp_id || "—").toString().match(/A\d{2}/)?.[0] || "—";
-
-      const fileFull = r?.file || "—";
-      const line = r?.line ? `:${r.line}` : "";
-      const fileWithLine = `${fileFull}${line}`;
-
-      // affichage plus propre (tronqué) + tooltip sur la version complète
-      const title = titleFull.length > 52 ? titleFull.slice(0, 51) + "…" : titleFull;
-      const file =
-        fileWithLine.length > 72 ? "…" + fileWithLine.slice(fileWithLine.length - 72) : fileWithLine;
-
-      return {
-        id: `${titleFull}-${fileWithLine}`,
-        title,
-        titleFull,
-        severity,
-        owasp,
-        file,
-        fileFull: fileWithLine,
-      };
-    });
-  }, [rawResults]);
+  const findings = useMemo(() => [...semgrepFindings, ...truffleFindings, ...banditFindings], [
+    semgrepFindings,
+    truffleFindings,
+    banditFindings,
+  ]);
 
   const availableSeverities = useMemo(() => {
     const set = new Set(findings.map((f) => f.severity));
@@ -140,28 +250,35 @@ export default function Dashboard() {
   }, [findings]);
 
   const availableOwasp = useMemo(() => {
-    const set = new Set(findings.map((f) => f.owasp).filter(Boolean));
+    const set = new Set(findings.map((f) => f.owasp).filter((x) => x && x !== "—"));
+    return ["All", ...Array.from(set)];
+  }, [findings]);
+
+  const availableSources = useMemo(() => {
+    const set = new Set(findings.map((f) => f.source));
     return ["All", ...Array.from(set)];
   }, [findings]);
 
   const filtered = useMemo(() => {
     return findings.filter((f) => {
       if (severityFilter !== "All" && f.severity !== severityFilter) return false;
+      if (sourceFilter !== "All" && f.source !== sourceFilter) return false;
       if (owaspFilter !== "All" && f.owasp !== owaspFilter) return false;
       return true;
     });
-  }, [findings, severityFilter, owaspFilter]);
+  }, [findings, severityFilter, sourceFilter, owaspFilter]);
 
   const score = useMemo(() => computeScore(findings), [findings]);
 
-  if (!semgrepResult) {
+  const banditCount = banditResult?.error ? "—" : banditResult?.summary?.issues ?? 0;
+  const truffleCount = trufflehogResult?.raw?.findings?.length ?? trufflehogResult?.summary?.secrets ?? 0;
+
+  if (!scanResults) {
     return (
       <div style={{ minHeight: "100vh", background: bg, padding: 28 }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <h1>Dashboard</h1>
-          <p style={{ color: "#666" }}>
-            Aucun résultat reçu. Lance une analyse depuis la page Upload.
-          </p>
+          <p style={{ color: "#666" }}>Aucun résultat reçu. Lance une analyse depuis la page Upload.</p>
           <button
             onClick={() => navigate("/")}
             style={{
@@ -184,23 +301,9 @@ export default function Dashboard() {
   return (
     <div style={{ minHeight: "100vh", background: bg, padding: 28 }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {/* ✅ HEADER sans bouton */}
+        <div style={{ display: "flex", alignItems: "center" }}>
           <h1 style={{ margin: 0 }}>Dashboard</h1>
-
-          <button
-            onClick={() => navigate("/fixes", { state: { semgrepResult, scanResults } })}
-            style={{
-              backgroundColor: "rgba(255, 182, 193, 0.25)",
-              color: "#c04c78",
-              border: "1px solid rgba(255, 182, 193, 0.6)",
-              padding: "10px 16px",
-              borderRadius: 14,
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            Voir corrections
-          </button>
         </div>
 
         <div
@@ -221,9 +324,6 @@ export default function Dashboard() {
             <h2 style={{ marginTop: 0 }}>Score global</h2>
             <p style={{ margin: "6px 0", color: "#666" }}>
               {filtered.length} vulnérabilité(s) affichée(s) (sur {findings.length})
-            </p>
-            <p style={{ margin: "6px 0", color: "#888", fontSize: 13 }}>
-              Version Semgrep : {semgrepResult?.summary?.version ?? "n/a"}
             </p>
           </div>
 
@@ -253,12 +353,10 @@ export default function Dashboard() {
               }}
             >
               <div style={{ fontWeight: 800, fontSize: 14 }}>Bandit</div>
-              <div style={{ marginTop: 6, fontSize: 26, fontWeight: 800 }}>
-                {banditResult?.error ? "—" : banditResult?.summary?.issues ?? 0}
-              </div>
+              <div style={{ marginTop: 6, fontSize: 26, fontWeight: 800 }}>{banditCount}</div>
               <div style={{ marginTop: 4, fontSize: 12, color: "#2a4f9b" }}>
                 {banditResult?.error ? "Non disponible" : "issue(s) détectée(s)"}
-            </div>
+              </div>
             </div>
 
             <div
@@ -272,9 +370,7 @@ export default function Dashboard() {
               }}
             >
               <div style={{ fontWeight: 800, fontSize: 14 }}>TruffleHog</div>
-              <div style={{ marginTop: 6, fontSize: 26, fontWeight: 800 }}>
-                {trufflehogResult?.error ? "—" : trufflehogResult?.summary?.secrets ?? 0}
-              </div>
+              <div style={{ marginTop: 6, fontSize: 26, fontWeight: 800 }}>{truffleCount}</div>
               <div style={{ marginTop: 4, fontSize: 12, color: "#2b7f46" }}>
                 {trufflehogResult?.error ? "Erreur TruffleHog" : "secret(s) détecté(s)"}
               </div>
@@ -325,12 +421,7 @@ export default function Dashboard() {
               <select
                 value={severityFilter}
                 onChange={(e) => setSeverityFilter(e.target.value)}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid #ddd",
-                  background: "#fff",
-                }}
+                style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid #ddd", background: "#fff" }}
               >
                 {availableSeverities.map((s) => (
                   <option key={s} value={s}>
@@ -340,14 +431,21 @@ export default function Dashboard() {
               </select>
 
               <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid #ddd", background: "#fff" }}
+              >
+                {availableSources.map((src) => (
+                  <option key={src} value={src}>
+                    {src === "All" ? "Toutes les sources" : src}
+                  </option>
+                ))}
+              </select>
+
+              <select
                 value={owaspFilter}
                 onChange={(e) => setOwaspFilter(e.target.value)}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid #ddd",
-                  background: "#fff",
-                }}
+                style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid #ddd", background: "#fff" }}
               >
                 {availableOwasp.map((o) => (
                   <option key={o} value={o}>
@@ -359,7 +457,9 @@ export default function Dashboard() {
               <button
                 onClick={() => {
                   setSeverityFilter("All");
+                  setSourceFilter("All");
                   setOwaspFilter("All");
+                  setOpenId(null);
                 }}
                 style={{
                   backgroundColor: "rgba(255, 182, 193, 0.18)",
@@ -384,78 +484,139 @@ export default function Dashboard() {
                   <th style={{ padding: "14px 10px", borderBottom: "1px solid #eee" }}>Sévérité</th>
                   <th style={{ padding: "14px 10px", borderBottom: "1px solid #eee" }}>OWASP</th>
                   <th style={{ padding: "14px 10px", borderBottom: "1px solid #eee" }}>Fichier</th>
+                  <th style={{ padding: "14px 10px", borderBottom: "1px solid #eee" }}>Ligne</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ padding: 16, color: "#777" }}>
-                      Aucune vulnérabilité à afficher (ou aucun résultat Semgrep).
+                    <td colSpan={5} style={{ padding: 16, color: "#777" }}>
+                      Aucune vulnérabilité à afficher.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((f) => (
-                    <tr key={f.id}>
-                      <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0" }}>
-                        <span title={f.titleFull}>{f.title}</span>
-                      </td>
-                      <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0" }}>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            padding: "6px 10px",
-                            borderRadius: 999,
-                            fontWeight: 700,
-                            fontSize: 13,
-                            ...badgeStyleForSeverity(f.severity),
-                          }}
+                  filtered.map((f) => {
+                    const isOpen = openId === f.id;
+
+                    return (
+                      <>
+                        <tr
+                          key={f.id}
+                          onClick={() => setOpenId(isOpen ? null : f.id)}
+                          style={{ cursor: "pointer" }}
                         >
-                          {f.severity}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0", color: "#555" }}>
-                        {f.owasp}
-                      </td>
-                      <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0", color: "#555" }}>
-                        <span
-                          title={f.fileFull}
-                          style={{
-                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                            fontSize: 12,
-                          }}
-                        >
-                          {f.file}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                          <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0" }}>
+                            <span
+                              style={{ display: "inline-flex", alignItems: "center", gap: 10, fontWeight: 650 }}
+                              title={f.titleFull}
+                            >
+                              <span
+                                aria-hidden
+                                style={{
+                                  width: 18,
+                                  display: "inline-block",
+                                  transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+                                  transition: "transform 120ms ease",
+                                  color: "#333",
+                                  fontSize: 18,
+                                  lineHeight: "18px",
+                                }}
+                              >
+                                ›
+                              </span>
+                              {f.title}
+                            </span>
+                          </td>
+
+                          <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0" }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "6px 10px",
+                                borderRadius: 999,
+                                fontWeight: 700,
+                                fontSize: 13,
+                                ...badgeStyleForSeverity(f.severity),
+                              }}
+                            >
+                              {f.severity}
+                            </span>
+                          </td>
+
+                          <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0", color: "#555" }}>
+                            {f.owasp}
+                          </td>
+
+                          <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0", color: "#555" }}>
+                            <span
+                              title={f.fileFull}
+                              style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}
+                            >
+                              {f.file}
+                            </span>
+                          </td>
+
+                          <td style={{ padding: "14px 10px", borderBottom: "1px solid #f0f0f0", color: "#555" }}>
+                            {f.lineNumber ?? "—"}
+                          </td>
+                        </tr>
+
+                        {isOpen && (
+                          <tr key={`${f.id}-details`}>
+                            <td colSpan={5} style={{ padding: 0, borderBottom: "1px solid #f0f0f0" }}>
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "1.7fr 0.9fr",
+                                  gap: 16,
+                                  padding: 16,
+                                  background: "#f1f1f1",
+                                }}
+                              >
+                                <div style={{ background: "#e9e9e9", borderRadius: 12, padding: 14 }}>
+                                  <div style={{ fontWeight: 800, marginBottom: 8 }}>Description détaillée :</div>
+                                  <div style={{ color: "#444", whiteSpace: "pre-wrap" }}>{f.description}</div>
+                                </div>
+
+                                <div style={{ background: "#e9e9e9", borderRadius: 12, padding: 14 }}>
+                                  <div style={{ fontWeight: 800, marginBottom: 8 }}>Outil source :</div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <span style={{ fontSize: 18 }}>✓</span>
+                                    <span style={{ fontWeight: 800 }}>{f.source}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
+        </div>
 
-          {import.meta.env.DEV && (
-            <details style={{ marginTop: 16 }}>
-              <summary style={{ cursor: "pointer", color: "#666" }}>
-                Debug : afficher les données Semgrep (issues + raw)
-              </summary>
-
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 800, fontSize: 12, color: "#666" }}>Issues (normalisées)</div>
-                <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, marginTop: 8 }}>
-                  {JSON.stringify(semgrepResult.issues, null, 2)}
-                </pre>
-              </div>
-
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontWeight: 800, fontSize: 12, color: "#666" }}>Raw (Semgrep)</div>
-                <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, marginTop: 8 }}>
-                  {JSON.stringify(semgrepResult.raw, null, 2)}
-                </pre>
-              </div>
-            </details>
-          )}
+        {/* ✅ BOUTON "Voir corrections" en bas centré */}
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 30 }}>
+          <button
+            onClick={() => navigate("/fixes", { state: { semgrepResult, scanResults } })}
+            style={{
+              backgroundColor: "rgba(255, 182, 193, 0.25)",
+              color: "#c04c78",
+              border: "1px solid rgba(255, 182, 193, 0.6)",
+              padding: "14px 28px",
+              borderRadius: 18,
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: 15,
+              boxShadow: "0 6px 18px rgba(0,0,0,0.05)",
+            }}
+          >
+            Voir corrections
+          </button>
         </div>
       </div>
     </div>
