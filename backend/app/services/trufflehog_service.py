@@ -1,73 +1,102 @@
 import json
-import os
+import re
 import subprocess
-import sys
-from fastapi import HTTPException
+
+TRUFFLEHOG_BIN = r"C:\Users\azag\.local\bin\trufflehog.exe"
+
+# Supprime les codes couleurs ANSI éventuels
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def run_trufflehog(target_dir: str) -> dict:
-    """
-    Lance TruffleHog v2 (pip package trufflehog==2.x) sur un repo local et renvoie un JSON.
-    TruffleHog v2 renvoie 1 JSON par ligne en mode --json.
-    """
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text or "")
 
-    env = os.environ.copy()
-    env["PYTHONUTF8"] = "1"
 
-    # TruffleHog v2 syntaxe : trufflehog --json <repo_path>
-    cmd = ["trufflehog", "--json", target_dir]
+def _normalize_finding(finding: dict) -> dict:
+    # Nettoyage des champs texte
+    if "printDiff" in finding and isinstance(finding["printDiff"], str):
+        finding["printDiff"] = _strip_ansi(finding["printDiff"])
 
-    try:
-        process = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-        )
-    except FileNotFoundError:
-        # Fallback si le binaire "trufflehog" n'est pas dans le PATH
-        cmd = [sys.executable, "-m", "trufflehog", "--json", target_dir]
-        process = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-        )
+    if "diff" in finding and isinstance(finding["diff"], str):
+        finding["diff"] = _strip_ansi(finding["diff"])
 
-    stdout = process.stdout or ""
-    stderr = process.stderr or ""
+    # Evite les réponses énormes + fuite de données (SQL dump, composer.lock, etc.)
+    finding.pop("diff", None)
+    finding.pop("printDiff", None)
 
-    # TruffleHog v2: 1 JSON par ligne
+    # Limite stringsFound pour rester lisible
+    if isinstance(finding.get("stringsFound"), list):
+        finding["stringsFound"] = finding["stringsFound"][:3]
+
+    # Normalisation du chemin
+    path = finding.get("path")
+    if isinstance(path, str):
+        path = path.replace("\\", "/")
+        if path.startswith("repo/"):
+            path = path[len("repo/"):]
+        finding["path"] = path
+
+    return finding
+
+
+def run_trufflehog(target: str) -> dict:
+    cmd = [TRUFFLEHOG_BIN, "--json", f"file:///{target.replace('\\', '/')}"]
+
+    process = subprocess.run(cmd, capture_output=True, text=True)
+    stdout = (process.stdout or "").strip()
+    stderr = (process.stderr or "").strip()
+
     findings = []
-    for line in stdout.splitlines():
-        line = (line or "").strip()
-        if not line:
-            continue
-        try:
-            data = json.loads(line)
-            if isinstance(data, dict):
-                findings.append(data)
-        except json.JSONDecodeError:
-            # ignore les lignes non json
-            pass
 
-    # Si rien en stdout ET code != 0 => vrai échec
-    if not findings and process.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "TruffleHog failed",
-                "return_code": process.returncode,
-                "stderr_tail": stderr[-2000:],
-            },
-        )
+    # Ancien TruffleHog renvoie 1 JSON par ligne
+    if stdout:
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                if isinstance(data, dict):
+                    findings.append(_normalize_finding(data))
+            except json.JSONDecodeError:
+                pass
+
+    # Bug Windows cleanup
+    cleanup_issue = (
+        ("PermissionError" in stderr or "WinError 32" in stderr or "WinError 5" in stderr)
+        and ("truffleHog.py" in stderr or "shutil.rmtree" in stderr or "del_rw" in stderr)
+    )
+
+    # Scan OK mais cleanup KO
+    if process.returncode != 0 and cleanup_issue:
+        return {
+            "ok": True,
+            "status": "warning",
+            "non_fatal": True,
+            "return_code": process.returncode,
+            "cmd": cmd,
+            "warning": "TruffleHog cleanup failed on Windows (ignored).",
+            "findings": findings,
+            "stderr_tail": stderr[-300:],
+        }
+
+    # Vrai échec
+    if process.returncode != 0:
+        return {
+            "ok": False,
+            "status": "error",
+            "non_fatal": False,
+            "error": "TruffleHog failed",
+            "return_code": process.returncode,
+            "cmd": cmd,
+            "stderr_tail": stderr[-1000:],
+        }
 
     return {
+        "ok": True,
+        "status": "ok",
+        "non_fatal": False,
+        "return_code": 0,
+        "cmd": cmd,
         "findings": findings,
-        "return_code": process.returncode,
-        "stderr_tail": stderr[-2000:],
     }
