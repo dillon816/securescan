@@ -1,19 +1,13 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { normalizeSeverity } from "../utils/severity";
+import { COLORS, SHADOWS } from "../constants/styles";
 
-const bg = "#f3f3f3";
-const card = "#ffffff";
-const shadow = "0 12px 40px rgba(0,0,0,0.06)";
+const bg = COLORS.background;
+const card = COLORS.card;
+const shadow = SHADOWS.card;
 
-function normalizeSeverity(s) {
-  const v = (s || "").toString().toLowerCase();
-  if (v.includes("critical")) return "Critical";
-  if (v.includes("high") || v === "error") return "High";
-  if (v.includes("medium") || v === "warning" || v.includes("warn")) return "Medium";
-  if (v.includes("low")) return "Low";
-  return "Info";
-}
-
+// Retourne le style du badge selon la sévérité
 function badgeStyleForSeverity(sev) {
   switch (sev) {
     case "Critical":
@@ -49,6 +43,7 @@ function badgeStyleForSeverity(sev) {
   }
 }
 
+// Calcule un score de sécurité basé sur les findings
 function computeScore(findings) {
   let score = 100;
   for (const f of findings) {
@@ -61,21 +56,19 @@ function computeScore(findings) {
   return Math.max(0, score);
 }
 
+// Formate un chemin de fichier avec numéro de ligne
 function makeFileLine(file, line) {
   if (!file) return "—";
   if (line === null || line === undefined || line === "—") return String(file);
   return `${file}:${line}`;
 }
 
-/** ✅ Description (ton backend renvoie "snippet" + "title") */
+// Extrait la meilleure description disponible
 function bestDescription(obj) {
   return obj?.snippet || obj?.title || obj?.description || obj?.message || "Aucune description disponible.";
 }
 
-/**
- * ✅ Récupère les résultats Semgrep peu importe la forme renvoyée par le backend
- * (direct, raw, data, output...).
- */
+// Récupère les résultats Semgrep depuis différentes structures possibles
 function getSemgrepResults(semgrepResult) {
   if (!semgrepResult) return [];
 
@@ -95,6 +88,7 @@ function getSemgrepResults(semgrepResult) {
   return [];
 }
 
+// Transforme les issues Semgrep en format standardisé
 function mapSemgrepIssues(issues) {
   return (issues || []).map((r, idx) => {
     const titleFull = r?.title || r?.check_id || r?.rule_id || "Finding";
@@ -125,6 +119,7 @@ function mapSemgrepIssues(issues) {
   });
 }
 
+// Transforme les findings TruffleHog en format standardisé
 function mapTrufflehogFindings(trufflehogResult) {
   const list =
     trufflehogResult?.raw?.findings ||
@@ -187,6 +182,7 @@ function mapTrufflehogFindings(trufflehogResult) {
   });
 }
 
+// Transforme les findings Bandit en format standardisé
 function mapBanditFindings(banditResult) {
   const list = banditResult?.issues || banditResult?.raw?.results || banditResult?.raw?.issues || [];
   if (!Array.isArray(list)) return [];
@@ -219,6 +215,7 @@ function mapBanditFindings(banditResult) {
   });
 }
 
+// Affiche le dashboard avec tous les résultats d'analyse
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();

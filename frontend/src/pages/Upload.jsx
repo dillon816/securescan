@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { scanZipAll, scanGitAll } from "../api/scan";
+import { scanZipAll, scanGitAll } from "../api/scans";
 
-// Page Upload permettant d'analyser un projet via URL Git ou fichier ZIP
+// Page principale pour lancer une analyse
 export default function Upload() {
   const navigate = useNavigate();
 
   const [gitUrl, setGitUrl] = useState("");
   const [zipFile, setZipFile] = useState(null);
+  const [githubToken, setGithubToken] = useState("");
   const [loading, setLoading] = useState(false);
 
   const canStart = useMemo(() => {
@@ -25,7 +26,7 @@ export default function Upload() {
   
       const results = zipFile
         ? await scanZipAll(zipFile)
-        : await scanGitAll(url);
+        : await scanGitAll(url, githubToken.trim() || null);
   
       navigate("/scan", { state: { scanResults: results } });
     } catch (e) {
@@ -77,6 +78,30 @@ export default function Upload() {
               outline: "none",
             }}
           />
+          <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>
+            Pour un repo <b>privé</b>, ajoute un token GitHub juste en dessous. Pour un repo public, le token est
+            facultatif.
+          </p>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <h3 style={{ marginBottom: 8 }}>Token GitHub (optionnel)</h3>
+          <input
+            type="password"
+            placeholder="ghp_… (nécessaire pour les repos privés)"
+            value={githubToken}
+            onChange={(e) => setGithubToken(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 12,
+              border: "1px solid #ddd",
+              outline: "none",
+            }}
+          />
+          <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>
+            Le token n’est envoyé qu’à ton backend SecureScan pour cloner le repo et créer des analyses.
+          </p>
         </div>
 
         <div style={{ textAlign: "center", margin: "28px 0", color: "#999" }}>

@@ -10,7 +10,6 @@ def run_semgrep(target_dir: str) -> dict:
     """
     Lance Semgrep sur le dossier `target_dir` et renvoie le JSON parsé.
 
-    Stratégie :
     - On essaie d'abord la commande `semgrep` (si dispo dans le PATH)
     - Sinon, on fallback sur `python -m semgrep` via l'interpréteur du venv (sys.executable)
     """
@@ -22,7 +21,7 @@ def run_semgrep(target_dir: str) -> dict:
             detail={"error": "target_dir must be an existing directory", "target_dir": str(repo_path)},
         )
 
-    # Arguments Semgrep (scan + rules auto + JSON)
+    # Arguments Semgrep 
     args = ["scan", "--config", "auto", "--json", str(repo_path)]
 
     # 1) On tente "semgrep ..."

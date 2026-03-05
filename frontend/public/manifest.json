@@ -1,6 +1,6 @@
 {
   "short_name": "SecureScan",
-  "name": "SecureScan App",
+  "name": "SecureScan - Plateforme d'Analyse de Qualité et Sécurité de Code",
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#ffffff",

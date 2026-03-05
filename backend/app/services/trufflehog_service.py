@@ -2,7 +2,9 @@ import json
 import re
 import subprocess
 
-TRUFFLEHOG_BIN = r"C:\Users\azag\.local\bin\trufflehog.exe"
+import shutil
+
+TRUFFLEHOG_BIN = shutil.which("trufflehog") or "trufflehog"
 
 # Supprime les codes couleurs ANSI éventuels
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
