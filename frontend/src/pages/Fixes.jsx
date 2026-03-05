@@ -8,6 +8,7 @@ import { normalizeSeverity } from "../utils/severity";
 import { pickOwasp } from "../utils/owasp";
 import { shortPath } from "../utils/paths";
 import { formatDate, downloadTextFile } from "../utils/reports";
+import { API_BASE } from "../api/client";
 
 // Construit la liste des corrections depuis les résultats Semgrep
 function buildFixesFromSemgrep(semgrepResult, findingIdMap, allFindings = []) {
@@ -455,7 +456,35 @@ export default function Fixes() {
     }
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
+    // Récupère le scan_id depuis les résultats
+    const scanId =
+      semgrepResult?.scan_id ||
+      scanResults?.scan_ids?.semgrep ||
+      scanResults?.scan_id ||
+      null;
+
+    if (scanId) {
+      // Télécharge le PDF depuis le backend
+      try {
+        const response = await fetch(`${API_BASE}/report/${scanId}/pdf`);
+        if (!response.ok) throw new Error('Erreur lors du téléchargement du PDF');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `securescan-report-${scanId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      } catch (error) {
+        console.error('Erreur téléchargement PDF:', error);
+        alert('Erreur lors du téléchargement du PDF. Génération du rapport texte...');
+        // Continue avec le rapport texte si le PDF échoue
+      }
+    }
+
+    // Fallback : génère le rapport texte comme avant
     const lines = [];
     const date = new Date();
     const dateStr = formatDate(date);

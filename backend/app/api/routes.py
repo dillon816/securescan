@@ -17,7 +17,7 @@ from typing import Optional
 import html
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, Response, Response
 from sqlalchemy.orm import Session
 
 from app.models.schemas import GitScanRequest, ApplyFixRequest, AutoFixRequest
@@ -1120,3 +1120,156 @@ def report_scan(scan_id: str, db: Session = Depends(get_db)):
 """
 
     return HTMLResponse(content=html_out)
+
+
+@router.get("/report/{scan_id}/pdf")
+def report_scan_pdf(scan_id: str, db: Session = Depends(get_db)):
+    """
+    Génère un rapport PDF à partir des données en base.
+    """
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="WeasyPrint n'est pas installé. Installez-le avec: pip install weasyprint"
+        )
+    
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    findings = db.query(Finding).filter(Finding.scan_id == scan_id).all()
+    fix_runs = db.query(FixRun).filter(FixRun.scan_id == scan_id).all()
+
+    suggestion_ids = [fr.suggestion_id for fr in fix_runs if fr.suggestion_id]
+    suggestions_by_id = {}
+    if suggestion_ids:
+        rows = db.query(FixSuggestion).filter(FixSuggestion.id.in_(suggestion_ids)).all()
+        suggestions_by_id = {s.id: s for s in rows}
+
+    sev_counts = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0, "Info": 0}
+    for f in findings:
+        if f.severity in sev_counts:
+            sev_counts[f.severity] += 1
+
+    owasp_counts = {}
+    for f in findings:
+        if f.owasp_id:
+            owasp_counts[f.owasp_id] = owasp_counts.get(f.owasp_id, 0) + 1
+
+    def esc(x) -> str:
+        return html.escape(str(x)) if x is not None else ""
+
+    created_at = scan.created_at.isoformat() if scan.created_at else ""
+
+    # Génère le même HTML que l'endpoint HTML (version simplifiée pour PDF)
+    html_out = f"""
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <title>SecureScan Report - {esc(scan_id)}</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 20px; color: #333; }}
+    h1 {{ color: #b54a72; border-bottom: 2px solid #b54a72; padding-bottom: 10px; }}
+    h2 {{ color: #555; margin-top: 30px; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 10px; }}
+    th, td {{ border: 1px solid #ddd; padding: 6px; text-align: left; }}
+    th {{ background-color: #f5f5f5; font-weight: bold; }}
+    .muted {{ color: #666; font-size: 0.9em; }}
+    .severity-critical {{ color: #d32f2f; font-weight: bold; }}
+    .severity-high {{ color: #f57c00; font-weight: bold; }}
+    .severity-medium {{ color: #fbc02d; }}
+    .severity-low {{ color: #388e3c; }}
+  </style>
+</head>
+<body>
+  <h1>🛡️ SecureScan - Rapport d'analyse</h1>
+  
+  <div>
+    <h2>Informations du scan</h2>
+    <table>
+      <tr><th>Scan ID</th><td>{esc(scan_id)}</td></tr>
+      <tr><th>Date</th><td>{esc(created_at)}</td></tr>
+      <tr><th>Type de source</th><td>{esc(scan.source_type)}</td></tr>
+      <tr><th>Référence</th><td>{esc(scan.source_ref)}</td></tr>
+      <tr><th>Statut</th><td>{esc(scan.status)}</td></tr>
+    </table>
+
+    <h2>Statistiques</h2>
+    <table>
+      <tr><th>Sévérité</th><th>Nombre</th></tr>
+      <tr><td class="severity-critical">Critical</td><td>{sev_counts['Critical']}</td></tr>
+      <tr><td class="severity-high">High</td><td>{sev_counts['High']}</td></tr>
+      <tr><td class="severity-medium">Medium</td><td>{sev_counts['Medium']}</td></tr>
+      <tr><td class="severity-low">Low</td><td>{sev_counts['Low']}</td></tr>
+      <tr><td>Info</td><td>{sev_counts['Info']}</td></tr>
+    </table>
+
+    <h2>Vulnérabilités détectées ({len(findings)})</h2>
+    <table>
+      <tr>
+        <th>Outil</th>
+        <th>Règle</th>
+        <th>Sévérité</th>
+        <th>OWASP</th>
+        <th>Fichier</th>
+        <th>Ligne</th>
+        <th>Description</th>
+      </tr>
+"""
+    
+    for f in findings:
+        html_out += f"""
+      <tr>
+        <td>{esc(f.tool)}</td>
+        <td>{esc(f.rule_id)}</td>
+        <td class="severity-{esc(f.severity).lower()}">{esc(f.severity)}</td>
+        <td>{esc(f.owasp_id or '—')}</td>
+        <td>{esc(f.file_path)}</td>
+        <td>{esc(f.line_start)}</td>
+        <td>{esc((f.message or f.title)[:80])}</td>
+      </tr>
+"""
+
+    html_out += """
+    </table>
+
+    <h2>Corrections appliquées</h2>
+    <table>
+      <tr>
+        <th>Finding ID</th>
+        <th>Statut</th>
+        <th>Date</th>
+        <th>Erreur</th>
+      </tr>
+"""
+    
+    for fr in fix_runs:
+        html_out += f"""
+      <tr>
+        <td>{esc(fr.finding_id)}</td>
+        <td>{esc(fr.status)}</td>
+        <td>{esc(fr.created_at.isoformat() if fr.created_at else '')}</td>
+        <td>{esc(fr.error or '')}</td>
+      </tr>
+"""
+
+    html_out += """
+    </table>
+  </div>
+</body>
+</html>
+"""
+    
+    # Convertit le HTML en PDF
+    pdf_bytes = HTML(string=html_out).write_pdf()
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="securescan-report-{scan_id}.pdf"'
+        }
+    )
