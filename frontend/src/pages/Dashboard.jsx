@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { normalizeSeverity } from "../utils/severity";
 import { COLORS, SHADOWS } from "../constants/styles";
@@ -91,15 +91,28 @@ function getSemgrepResults(semgrepResult) {
 // Transforme les issues Semgrep en format standardisé
 function mapSemgrepIssues(issues) {
   return (issues || []).map((r, idx) => {
-    const titleFull = r?.title || r?.check_id || r?.rule_id || "Finding";
+    // Les issues normalisés ont: tool="semgrep", file, line, title, severity, owasp_id
+    // Les issues bruts ont: check_id, path, start.line, extra.message, extra.severity
+    const isNormalized = r?.tool === "semgrep";
+    
+    const titleFull = isNormalized
+      ? (r?.title || "Finding")
+      : (r?.title || r?.extra?.message || r?.check_id || r?.rule_id || "Finding");
     const MAX_TITLE = 38;
     const title = titleFull.length > MAX_TITLE ? titleFull.slice(0, MAX_TITLE - 1) + "…" : titleFull;
 
-    const severity = normalizeSeverity(r?.severity);
+    const severity = isNormalized
+      ? normalizeSeverity(r?.severity)
+      : normalizeSeverity(r?.extra?.severity || r?.severity);
     const owasp = r?.owasp_id || "—";
 
-    const file = r?.path || r?.file || "—";
-    const line = r?.start?.line ?? r?.line ?? "—";
+    // Supporte les deux formats : normalisé (file) et brut (path)
+    const file = isNormalized
+      ? (r?.file || "—")
+      : (r?.file || r?.path || "—");
+    const line = isNormalized
+      ? (r?.line ?? "—")
+      : (r?.line ?? r?.start?.line ?? "—");
 
     const fileFull = makeFileLine(file, line);
     const fileShort = fileFull.length > 72 ? "…" + fileFull.slice(fileFull.length - 72) : fileFull;
@@ -121,7 +134,9 @@ function mapSemgrepIssues(issues) {
 
 // Transforme les findings TruffleHog en format standardisé
 function mapTrufflehogFindings(trufflehogResult) {
+  // Priorité aux issues normalisés, puis fallback sur raw.findings
   const list =
+    trufflehogResult?.issues ||
     trufflehogResult?.raw?.findings ||
     trufflehogResult?.raw?.results ||
     trufflehogResult?.findings ||
@@ -131,34 +146,40 @@ function mapTrufflehogFindings(trufflehogResult) {
   if (!Array.isArray(list)) return [];
 
   return list.map((x, idx) => {
-    const path =
-      x?.path ||
-      x?.file ||
-      x?.filename ||
-      x?.source?.file ||
-      x?.source?.path ||
-      x?.location?.path ||
-      x?.location?.file ||
-      "—";
+    // Si c'est un issue normalisé, utilise directement les champs
+    const isNormalized = x?.tool === "trufflehog" || x?.file;
+    
+    const path = isNormalized
+      ? (x?.file || "—")
+      : (x?.path ||
+          x?.file ||
+          x?.filename ||
+          x?.source?.file ||
+          x?.source?.path ||
+          x?.location?.path ||
+          x?.location?.file ||
+          "—");
 
-    const line =
-      x?.line ??
-      x?.line_number ??
-      x?.source?.line ??
-      x?.source?.line_number ??
-      x?.start_line ??
-      x?.location?.line ??
-      x?.location?.line_number ??
-      x?.source?.start_line ??
-      "—";
+    const line = isNormalized
+      ? (x?.line ?? "—")
+      : (x?.line ??
+          x?.line_number ??
+          x?.source?.line ??
+          x?.source?.line_number ??
+          x?.start_line ??
+          x?.location?.line ??
+          x?.location?.line_number ??
+          x?.source?.start_line ??
+          "—");
 
-    const titleFull =
-      x?.description ||
-      x?.reason ||
-      x?.detector_name ||
-      x?.detector ||
-      x?.type ||
-      "Secret detected";
+    const titleFull = isNormalized
+      ? (x?.title || "Secret detected")
+      : (x?.description ||
+          x?.reason ||
+          x?.detector_name ||
+          x?.detector ||
+          x?.type ||
+          "Secret detected");
 
     const title = titleFull.length > 52 ? titleFull.slice(0, 51) + "…" : titleFull;
 
@@ -188,14 +209,25 @@ function mapBanditFindings(banditResult) {
   if (!Array.isArray(list)) return [];
 
   return list.map((x, idx) => {
-    const titleFull = x?.test_name || x?.issue_text || x?.title || "Bandit issue";
+    // Détecte si c'est un issue normalisé (a tool="bandit")
+    const isNormalized = x?.tool === "bandit";
+    
+    const titleFull = isNormalized
+      ? (x?.title || "Bandit issue")
+      : (x?.test_name || x?.issue_text || x?.title || "Bandit issue");
     const title = titleFull.length > 52 ? titleFull.slice(0, 51) + "…" : titleFull;
 
-    const severityRaw = x?.issue_severity || x?.severity || "Medium";
+    const severityRaw = isNormalized
+      ? (x?.severity || "Medium")
+      : (x?.issue_severity || x?.severity || "Medium");
     const severity = normalizeSeverity(severityRaw);
 
-    const file = x?.filename || x?.file || "—";
-    const line = x?.line_number ?? x?.line ?? "—";
+    const file = isNormalized
+      ? (x?.file || "—")
+      : (x?.filename || x?.file || "—");
+    const line = isNormalized
+      ? (x?.line ?? "—")
+      : (x?.line_number ?? x?.line ?? "—");
 
     const fileFull = makeFileLine(file, line);
     const fileShort = fileFull.length > 72 ? "…" + fileFull.slice(fileFull.length - 72) : fileFull;
@@ -205,11 +237,13 @@ function mapBanditFindings(banditResult) {
       title,
       titleFull,
       severity,
-      owasp: "—",
+      owasp: isNormalized ? (x?.owasp_id || "—") : "—",
       file: fileShort,
       fileFull,
       lineNumber: line,
-      description: x?.issue_text || x?.more_info || "Issue détectée par Bandit.",
+      description: isNormalized
+        ? (x?.snippet || x?.title || "Issue détectée par Bandit.")
+        : (x?.issue_text || x?.more_info || "Issue détectée par Bandit."),
       source: "Bandit",
     };
   });
@@ -231,9 +265,33 @@ export default function Dashboard() {
   const banditResult = scanResults?.banditResult || null;
   const trufflehogResult = scanResults?.trufflehogResult || null;
 
-  const semgrepFindings = useMemo(() => mapSemgrepIssues(getSemgrepResults(semgrepResult)), [semgrepResult]);
-  const truffleFindings = useMemo(() => mapTrufflehogFindings(trufflehogResult), [trufflehogResult]);
-  const banditFindings = useMemo(() => mapBanditFindings(banditResult), [banditResult]);
+  // Utilise les issues normalisés directement, ou fallback sur raw.results
+  const semgrepFindings = useMemo(() => {
+    if (!semgrepResult) return [];
+    // Le backend retourne {issues: [...], raw: {...}, summary: {...}}
+    console.log("🔍 [DEBUG] Semgrep result complet:", semgrepResult);
+    const issues = semgrepResult.issues || getSemgrepResults(semgrepResult);
+    console.log("🔍 [DEBUG] Semgrep issues extraits:", issues);
+    console.log("🔍 [DEBUG] Semgrep raw.results:", semgrepResult?.raw?.results);
+    if (!Array.isArray(issues) || issues.length === 0) {
+      console.warn("⚠️ [DEBUG] Semgrep: aucun issue trouvé. Raw:", semgrepResult?.raw);
+      return [];
+    }
+    return mapSemgrepIssues(issues);
+  }, [semgrepResult]);
+  
+  const truffleFindings = useMemo(() => {
+    if (!trufflehogResult) return [];
+    return mapTrufflehogFindings(trufflehogResult);
+  }, [trufflehogResult]);
+  
+  const banditFindings = useMemo(() => {
+    if (!banditResult) return [];
+    // Le backend retourne {issues: [...], raw: {...}, summary: {...}}
+    const issues = banditResult.issues || banditResult?.raw?.results || [];
+    if (!Array.isArray(issues) || issues.length === 0) return [];
+    return mapBanditFindings({ issues });
+  }, [banditResult]);
 
   const findings = useMemo(() => [...semgrepFindings, ...truffleFindings, ...banditFindings], [
     semgrepFindings,
@@ -267,8 +325,10 @@ export default function Dashboard() {
 
   const score = useMemo(() => computeScore(findings), [findings]);
 
-  const banditCount = banditResult?.error ? "—" : banditResult?.summary?.issues ?? 0;
-  const truffleCount = trufflehogResult?.raw?.findings?.length ?? trufflehogResult?.summary?.secrets ?? 0;
+  // Compteurs pour l'affichage
+  const semgrepCount = semgrepResult?.summary?.findings ?? semgrepResult?.raw?.results?.length ?? semgrepFindings.length;
+  const banditCount = banditResult?.error ? "—" : (banditResult?.summary?.issues ?? banditResult?.raw?.results?.length ?? banditFindings.length);
+  const truffleCount = trufflehogResult?.raw?.findings?.length ?? trufflehogResult?.summary?.secrets ?? truffleFindings.length;
 
   if (!scanResults) {
     return (
@@ -343,6 +403,23 @@ export default function Dashboard() {
               style={{
                 minWidth: 220,
                 borderRadius: 20,
+                background: "rgba(255, 182, 193, 0.18)",
+                border: "1px solid rgba(255, 105, 180, 0.25)",
+                padding: 16,
+                color: "#b54a72",
+              }}
+            >
+              <div style={{ fontWeight: 800, fontSize: 14 }}>Semgrep</div>
+              <div style={{ marginTop: 6, fontSize: 26, fontWeight: 800 }}>{semgrepCount}</div>
+              <div style={{ marginTop: 4, fontSize: 12, color: "#a03d5f" }}>
+                {semgrepResult?.error ? "Erreur Semgrep" : "vulnérabilité(s) détectée(s)"}
+              </div>
+            </div>
+
+            <div
+              style={{
+                minWidth: 220,
+                borderRadius: 20,
                 background: "rgba(173, 216, 230, 0.22)",
                 border: "1px solid rgba(100, 149, 237, 0.25)",
                 padding: 16,
@@ -375,7 +452,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {(banditResult?.error || trufflehogResult?.error) && (
+        {(semgrepResult?.error || banditResult?.error || trufflehogResult?.error) && (
           <div
             style={{
               marginTop: 14,
@@ -386,8 +463,9 @@ export default function Dashboard() {
               color: "#7a4a00",
             }}
           >
-            <div style={{ fontWeight: 800 }}>Certain(s) outils n’ont pas pu s’exécuter</div>
+            <div style={{ fontWeight: 800 }}>Certain(s) outils n'ont pas pu s'exécuter</div>
             <ul style={{ margin: "8px 0 0 18px" }}>
+              {semgrepResult?.error && <li>Semgrep : {semgrepResult.error}</li>}
               {banditResult?.error && <li>Bandit : {banditResult.error}</li>}
               {trufflehogResult?.error && <li>TruffleHog : {trufflehogResult.error}</li>}
             </ul>
@@ -497,9 +575,9 @@ export default function Dashboard() {
                     const isOpen = openId === f.id;
 
                     return (
-                      <>
+                      <React.Fragment key={f.id}>
                         <tr
-                          key={f.id}
+                          key={`${f.id}-row`}
                           onClick={() => setOpenId(isOpen ? null : f.id)}
                           style={{ cursor: "pointer" }}
                         >
@@ -587,7 +665,7 @@ export default function Dashboard() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     );
                   })
                 )}

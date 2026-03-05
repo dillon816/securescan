@@ -28,10 +28,10 @@ def generate_uuid() -> str:
 
 def make_issue_key(
     tool: str,
-    rule_id: str | None,
-    file_path: str | None,
-    line: int | None,
-    message: str | None,
+    rule_id: Optional[str],
+    file_path: Optional[str],
+    line: Optional[int],
+    message: Optional[str],
 ) -> str:
     """
     Clé unique par scan pour dédoublonner : hash(tool+rule_id+file+line+message)

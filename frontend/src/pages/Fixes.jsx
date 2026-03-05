@@ -60,10 +60,73 @@ function buildFixesFromSemgrep(semgrepResult, findingIdMap, allFindings = []) {
     }
 
     return {
-      id: `fix-${idx}`,
+      id: `semgrep-fix-${idx}`,
       title,
       fileFull: start ? `${path}:${start}${end ? `-${end}` : ""}` : path,
       fileDisplay: shortPath(start ? `${path}:${start}${end ? `-${end}` : ""}` : path),
+      owasp,
+      severity,
+      before,
+      after,
+      findingId,
+    };
+  });
+}
+
+// Construit la liste des corrections depuis les résultats Bandit
+function buildFixesFromBandit(banditResult, findingIdMap, allFindings = []) {
+  const results = banditResult?.raw?.results || banditResult?.issues || [];
+  if (!Array.isArray(results)) return [];
+
+  return results.map((r, idx) => {
+    const title = r?.test_id || r?.issue_text || r?.title || "Issue détectée";
+    const path = r?.filename || r?.file || "unknown";
+    const start = r?.line_number || r?.line || null;
+    
+    const severityRaw = r?.issue_severity || r?.severity;
+    const severity = normalizeSeverity(severityRaw);
+    const owasp = r?.owasp_id || "—";
+
+    const before = r?.code || r?.snippet || "(code indisponible)";
+    
+    // Génère une suggestion de correction basée sur le type de vulnérabilité
+    let after = "(pas de fix automatique — à corriger manuellement)";
+    if (title.includes("yaml.load") || r?.test_id === "B506") {
+      after = "yaml.load(yaml_text, Loader=yaml.Loader)";
+    } else if (title.includes("pickle.load") || r?.test_id === "B301") {
+      after = "pickle.load(file)  # WARNING: Only load trusted data";
+    } else if (title.includes("eval") || r?.test_id === "B307") {
+      after = "ast.literal_eval(...)  # Use ast.literal_eval instead of eval";
+    } else if (title.includes("shell=True") || r?.test_id === "B602") {
+      after = "subprocess.run(..., shell=False)";
+    }
+
+    const normalizedPath = path.replace(/^.*\/(repo|project)\//, "").replace(/\\/g, "/");
+    const fileName = path.split("/").pop();
+    const ruleId = r?.test_id || r?.rule_id || "";
+    const key1 = `${ruleId}|${path}|${start || ""}`;
+    const key2 = `${ruleId}|${normalizedPath}|${start || ""}`;
+    const key3 = `${ruleId}|${fileName}|${start || ""}`;
+    let findingId = findingIdMap?.[key1] || findingIdMap?.[key2] || findingIdMap?.[key3];
+    
+    if (!findingId && allFindings.length > 0) {
+      const matchingFinding = allFindings.find(
+        (f) =>
+          (f.file_path === path || f.file_path === normalizedPath || f.file_path?.endsWith(fileName)) &&
+          (f.line_start === start || f.line_start === parseInt(start))
+      );
+      if (matchingFinding) {
+        findingId = matchingFinding.id;
+      } else if (idx < allFindings.length) {
+        findingId = allFindings[idx].id;
+      }
+    }
+
+    return {
+      id: `bandit-fix-${idx}`,
+      title,
+      fileFull: start ? `${path}:${start}` : path,
+      fileDisplay: shortPath(start ? `${path}:${start}` : path),
       owasp,
       severity,
       before,
@@ -78,6 +141,7 @@ export default function Fixes() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const semgrepResult = state?.semgrepResult;
+  const banditResult = state?.scanResults?.banditResult || state?.banditResult;
 
   // On garde scanResults si on l'a (utile pour revenir proprement au dashboard)
   const scanResults = state?.scanResults;
@@ -85,10 +149,40 @@ export default function Fixes() {
   const [findingIdMap, setFindingIdMap] = useState({});
   const [allFindings, setAllFindings] = useState([]);
 
-  const fixes = useMemo(
-    () => buildFixesFromSemgrep(semgrepResult, findingIdMap, allFindings),
-    [semgrepResult, findingIdMap, allFindings]
-  );
+  const fixes = useMemo(() => {
+    const semgrepFixes = buildFixesFromSemgrep(semgrepResult, findingIdMap, allFindings);
+    const banditFixes = buildFixesFromBandit(banditResult, findingIdMap, allFindings);
+    
+    // Combine les deux listes
+    const allFixes = [...semgrepFixes, ...banditFixes];
+    
+    // Déduplique les fixes qui pointent vers le même fichier/ligne
+    // Si deux fixes ont le même fichier et la même ligne, on garde seulement le premier
+    const seen = new Map(); // Map<fileFull, fix>
+    
+    for (const fix of allFixes) {
+      // Extrait le fichier et la ligne depuis fileFull (format: "path/to/file.py:33")
+      const fileLineMatch = fix.fileFull.match(/^(.+):(\d+)/);
+      if (fileLineMatch) {
+        const filePath = fileLineMatch[1];
+        const lineNum = fileLineMatch[2];
+        const key = `${filePath}:${lineNum}`;
+        
+        // Si on a déjà une vulnérabilité sur cette ligne, on garde la première
+        if (!seen.has(key)) {
+          seen.set(key, fix);
+        }
+      } else {
+        // Si pas de numéro de ligne, utilise le fichier complet comme clé
+        const key = fix.fileFull;
+        if (!seen.has(key)) {
+          seen.set(key, fix);
+        }
+      }
+    }
+    
+    return Array.from(seen.values());
+  }, [semgrepResult, banditResult, findingIdMap, allFindings]);
 
   const [selected, setSelected] = useState(() => new Set());
   const [status, setStatus] = useState("idle"); // idle | applying | done | applied | error
@@ -105,7 +199,9 @@ export default function Fixes() {
   useEffect(() => {
     const scanId =
       semgrepResult?.scan_id ||
+      banditResult?.scan_id ||
       scanResults?.scan_ids?.semgrep ||
+      scanResults?.scan_ids?.bandit ||
       scanResults?.scan_id ||
       null;
 
@@ -113,14 +209,19 @@ export default function Fixes() {
       try {
         let targetScanId = scanId;
 
-        // Si pas de scan_id direct, on récupère le dernier scan Semgrep
+        // Si pas de scan_id direct, on récupère le dernier scan Semgrep ou Bandit
         if (!targetScanId) {
           const scans = await listScans(5);
           const semgrepScan = scans.find(
             (s) => s.source_type === "git" && s.semgrep_version && s.summary_json?.findings > 0
           );
+          const banditScan = scans.find(
+            (s) => s.source_type === "git" && s.summary_json?.issues > 0
+          );
           if (semgrepScan) {
             targetScanId = semgrepScan.id;
+          } else if (banditScan) {
+            targetScanId = banditScan.id;
           }
         }
 
@@ -774,7 +875,7 @@ export default function Fixes() {
 
         {fixes.length === 0 ? (
           <div style={{ marginTop: 16, color: "#666" }}>
-            Aucun finding Semgrep trouvé dans le résultat.
+            Aucun finding trouvé dans le résultat.
           </div>
         ) : (
           <div style={{ marginTop: 18, display: "grid", gap: 16 }}>
@@ -935,10 +1036,6 @@ export default function Fixes() {
             })}
           </div>
         )}
-
-        <div style={{ marginTop: 18, color: "#777", fontSize: 13 }}>
-          Note: “Appliquer” est en mode demo (pas de commit automatique).
-        </div>
       </div>
     </div>
   );

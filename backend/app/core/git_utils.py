@@ -1,6 +1,7 @@
 # app/core/git_utils.py
 import subprocess
 from pathlib import Path
+from typing import Optional
 from fastapi import HTTPException
 from urllib.parse import urlparse
 
@@ -29,7 +30,7 @@ def validate_repo_url(repo_url: str) -> str:
     return repo_url
 
 
-def clone_repo(repo_url: str, repo_dir: Path, github_token: str | None = None) -> None:
+def clone_repo(repo_url: str, repo_dir: Path, github_token: Optional[str] = None) -> None:
     """
     Clone un repo. Si github_token est fourni et URL GitHub HTTPS -> clone authentifié (repo privé).
     IMPORTANT: ne jamais logger l'URL modifiée (elle contient le token).

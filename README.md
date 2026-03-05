@@ -210,20 +210,34 @@ securescan/
 
 ## 📡 API Endpoints
 
-### Scans
+### Santé
+- `GET /health` - Vérifie l'état de l'API
+
+### Scans individuels (ZIP)
 - `POST /scan/semgrep` - Lance Semgrep sur un ZIP
-- `POST /scan/semgrep/git` - Lance Semgrep sur un repo Git
 - `POST /scan/bandit` - Lance Bandit sur un ZIP
-- `POST /scan/bandit/git` - Lance Bandit sur un repo Git
 - `POST /scan/trufflehog` - Lance TruffleHog sur un ZIP
+
+### Scans individuels (Git)
+- `POST /scan/semgrep/git` - Lance Semgrep sur un repo Git
+- `POST /scan/bandit/git` - Lance Bandit sur un repo Git
 - `POST /scan/trufflehog/git` - Lance TruffleHog sur un repo Git
+
+### Scans complets
+- `POST /scan/all` - Lance tous les outils en parallèle sur un ZIP
+- `POST /scan/all/git` - Lance tous les outils en parallèle sur un repo Git
 
 ### Gestion des scans
 - `GET /scans` - Liste les scans récents
 - `GET /scans/{scan_id}` - Récupère les détails d'un scan avec ses findings
+- `GET /stats` - Statistiques globales sur les scans
+
+### Rapports
+- `GET /report/{scan_id}` - Génère un rapport HTML pour un scan
 
 ### Auto-fix
 - `POST /fix/auto/github` - Crée une Pull Request GitHub pour corriger une vulnérabilité
+- `POST /fix/apply/github` - Applique une correction via GitHub (endpoint alternatif)
 
 Documentation interactive : [http://localhost:8001/docs](http://localhost:8001/docs)
 

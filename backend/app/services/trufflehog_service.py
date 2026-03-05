@@ -42,7 +42,8 @@ def _normalize_finding(finding: dict) -> dict:
 
 
 def run_trufflehog(target: str) -> dict:
-    cmd = [TRUFFLEHOG_BIN, "--json", f"file:///{target.replace('\\', '/')}"]
+    normalized_target = target.replace('\\', '/')
+    cmd = [TRUFFLEHOG_BIN, "--json", "filesystem", normalized_target]
 
     process = subprocess.run(cmd, capture_output=True, text=True)
     stdout = (process.stdout or "").strip()

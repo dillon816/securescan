@@ -3,13 +3,14 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import List, Optional
 from urllib.parse import urlparse
 
 import requests
 from fastapi import HTTPException
 
 
-def _run(cmd: list[str], cwd: Path | None = None) -> str:
+def _run(cmd: List[str], cwd: Optional[Path] = None) -> str:
     p = subprocess.run(cmd, cwd=str(cwd) if cwd else None, capture_output=True, text=True)
     if p.returncode != 0:
         raise HTTPException(
